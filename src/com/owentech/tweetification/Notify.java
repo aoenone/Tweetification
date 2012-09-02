@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -359,9 +360,16 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 					 * .addAction(R.drawable.reply, "Reply", contentIntent)
 					 * .addAction(R.drawable.retweet, "Retweet", contentIntent)
 					 */
-					.setSound(Uri.parse(sp.getString("notUri", "notset")))
-					.setLargeIcon(largeIcon);
-
+					.setSound(Uri.parse(sp.getString("notUri", "notset")));
+			
+			if (imageReceived != false && networkEnabled == true)
+			{
+				if (largeIcon != null)
+				{
+					builder.setLargeIcon(largeIcon);
+				}
+			}
+			
 			noti = new NotificationCompat2.BigTextStyle(builder).bigText(
 					messageReceived).build();
 
@@ -392,13 +400,45 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 			db.connectDB();
 			Cursor notificationRecords = db.getAllNotifications();
 			notificationRecords.moveToFirst();
+			
+			String[] users = new String[notificationRecords.getCount()];
+			String[] messages = new String[notificationRecords.getCount()];
+			
+			int a = 0;
+			
+			// get all notifications stored in db and assign username and messages to arrays
+			while (notificationRecords.isAfterLast() == false)
+			{
+				users[a] = getUsername(notificationRecords.getString(1));
+				messages[a] = notificationRecords.getString(1);
+				a++;
+				notificationRecords.moveToNext();
+			}
+			
+			Log.i(TAG, "Array length: " + String.valueOf(users.length) );
+			Log.i(TAG, Arrays.toString(users));
+			
+			notificationRecords.close();
+			
+			// count number of bitmaps that exist locally
+			int localBitmaps = 0;
+			
+			for (int i=0; i < users.length; i++)
+			{
+				if (ih.avatarExists(users[i]))
+				{
+					localBitmaps++;
+				}
+			}
+			
+			Log.i(TAG, "local Bitmaps: " + String.valueOf(localBitmaps));
 
+			//create bitmap array to correct size
 			Bitmap[] bitmapArray;
 
-			int total = notificationRecords.getCount();
-			if (total <= 4)
+			if (localBitmaps <= 4)
 			{
-				bitmapArray = new Bitmap[total];
+				bitmapArray = new Bitmap[localBitmaps];
 			}
 			else
 			{
@@ -406,9 +446,9 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 			}
 
 			int more = 0;
-			int current = 1;
+			int current;
 
-			while (notificationRecords.isAfterLast() == false)
+			for (current = 1; current < users.length+1; current++)
 			{
 				if (current > 4)
 				{
@@ -416,21 +456,25 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 				}
 				else
 				{
-
-					bitmapArray[current-1] = ih.getLocal(
-							getUsername(notificationRecords.getString(1)),
+					
+					if (users.length == localBitmaps)
+					{
+						bitmapArray[current - 1] = ih.getLocal(users[current - 1],
 							false);
+					}
+					Log.i(TAG, users[current-1]);
 
-					inbox.addLine(notificationRecords.getString(1));
+					inbox.addLine(messages[current-1]);
 				}
-				notificationRecords.moveToNext();
-				current++;
 
 			}
-
-			inboxBuilder.setLargeIcon(ih.makeCollage(bitmapArray));
-
-			notificationRecords.close();
+			
+			Log.i(TAG, "BitmapArray length: " + String.valueOf(bitmapArray.length));
+			
+			if (users.length == localBitmaps)
+			{
+				inboxBuilder.setLargeIcon(ih.makeCollage(bitmapArray));
+			}
 
 			if (more != 0)
 			{
