@@ -45,7 +45,6 @@ public class Database
 		Log.i(TAG, "Creating SQLITE tables");
 		db.setVersion(1);
 		db.setLocale(Locale.getDefault());
-		db.setLockingEnabled(true);
 
 		final String CREATE_USER_TABLE = "CREATE TABLE IF NOT EXISTS tbl_tweetification ("
 				+ "username TEXT PRIMARY KEY," + "name TEXT);";

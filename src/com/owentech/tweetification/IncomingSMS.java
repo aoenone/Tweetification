@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.telephony.SmsMessage;
 import android.util.Log;
+import android.widget.Toast;
 
 @SuppressLint("NewApi")
 public class IncomingSMS extends BroadcastReceiver
@@ -27,7 +28,7 @@ public class IncomingSMS extends BroadcastReceiver
 
 	String messageReceived;
 
-	private static final String SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED";
+	//private static final String SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED";
 	private static final String TAG = "Tweetification";
 
 	@Override
@@ -35,14 +36,14 @@ public class IncomingSMS extends BroadcastReceiver
 	{
 
 		// setup shared preferences
-				final SharedPreferences sp = PreferenceManager
-						.getDefaultSharedPreferences(context);
+		final SharedPreferences sp = PreferenceManager
+				.getDefaultSharedPreferences(context);
 
-		
-		// TODO Auto-generated method stub
 		Log.i(TAG, "SMS received.");
 
-		if (sp.getBoolean("enabled", false) == true)
+		// if (sp.getBoolean("enabled", false) == true)
+		if (!sp.getString("number", "notset").equals("notset")
+				&& !sp.getString("application", "notset").equals("notset"))
 		{
 
 			Bundle bundle = intent.getExtras();
@@ -67,19 +68,15 @@ public class IncomingSMS extends BroadcastReceiver
 										+ messages[0].getOriginatingAddress());
 
 						messageReceived = messages[0].getMessageBody();
-						
-						
+
 						int notifID = sp.getInt("lastNotification", 0) + 1;
 						SharedPreferences.Editor editor = sp.edit();
 						editor.putInt("lastNotification", notifID);
 						editor.commit();
 
-
-						Notify notify = new Notify(context, messageReceived, notifID, sp.getBoolean("networkenabled", true));
+						Notify notify = new Notify(context, messageReceived,
+								notifID, sp.getBoolean("networkenabled", true));
 						notify.execute();
-
-						
-						
 
 					}
 
@@ -88,7 +85,10 @@ public class IncomingSMS extends BroadcastReceiver
 		}
 		else
 		{
-
+			Toast.makeText(
+					context,
+					"Tweetification received a message, but isn't configured to handle it yet. Please setup the application to launch and incoming number",
+					Toast.LENGTH_LONG).show();
 		}
 
 	}

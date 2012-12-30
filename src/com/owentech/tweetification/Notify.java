@@ -5,6 +5,8 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -29,9 +31,8 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.preference.PreferenceManager;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
-
-import com.jakewharton.notificationcompat2.NotificationCompat2;
 
 @SuppressLint("NewApi")
 public class Notify extends AsyncTask<Void, Long, Boolean>
@@ -73,176 +74,192 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 	protected Boolean doInBackground(Void... params)
 	{
 
-		// parse through the message for the first username
-		username = getUsername(messageReceived);
-
-		// if network not enabled make username the name
-		if (!networkEnabled)
+		// Toast.makeText(ctx, "Number in List: " +
+		// Integer.toString(makeFilterList().size()),
+		// Toast.LENGTH_SHORT).show();
+		Log.d(TAG,
+				"Number in List: " + Integer.toString(makeFilterList().size()));
+		if (matchesFilterList())
 		{
-			name = "@" + username;
+			Log.d(TAG, "Matches Filter List");
+			return false;
 		}
-
-		// if network is enabled download and store avatar & name
-		if (networkEnabled)
+		else
 		{
+			Log.d(TAG, "Does Not Match Filter List");
 
-			db = new Database(ctx);
-			ih = new ImageHelper();
+			// parse through the message for the first username
+			username = getUsername(messageReceived);
 
-			db.connectDB();
-			db.createTable();
-
-			// check if the user has already been saved locally
-			if (db.userExists(username))
+			// if network not enabled make username the name
+			if (!networkEnabled)
 			{
-
-				Log.i(TAG, "Using locally stored image");
-
-				// check avatar exists locally and set bitmap
-				if (ih.avatarExists(username))
-				{
-					// get the locally stored avatar
-					largeIcon = ih.getLocal(username, true);
-					imageReceived = true;
-					// get the locally stored name
-					name = db.getName(username);
-				}
-				else
-				{
-					// user file doesn't exist, delete user from db
-					db.deleteUser(username);
-					imageReceived = false;
-					// set the username as name
-					name = "@" + username;
-				}
-
+				name = "@" + username;
 			}
 
-			// username does not exist get from Twitter REST API and add to db
-			else
+			// if network is enabled download and store avatar & name
+			if (networkEnabled)
 			{
 
-				Log.i(TAG, "Using REST API");
+				db = new Database(ctx);
+				ih = new ImageHelper();
 
-				URL url;
-				try
+				db.connectDB();
+				db.createTable();
+
+				// check if the user has already been saved locally
+				if (db.userExists(username))
 				{
-					url = new URL(
-							"https://api.twitter.com/1/users/show.xml?screen_name="
-									+ username + "&include_entities=false");
-					HttpURLConnection conn = (HttpURLConnection) url
-							.openConnection();
 
-					Log.i(TAG, "REST URL: " + url.toString());
+					Log.i(TAG, "Using locally stored image");
 
-					if (conn.getResponseCode() == HttpURLConnection.HTTP_OK)
+					// check avatar exists locally and set bitmap
+					if (ih.avatarExists(username))
 					{
-						DocumentBuilderFactory dbf = DocumentBuilderFactory
-								.newInstance();
-						DocumentBuilder db = dbf.newDocumentBuilder();
-						Document doc;
-						doc = db.parse(url.openStream());
-						doc.getDocumentElement().normalize();
-						NodeList itemLst = doc.getElementsByTagName("user");
+						// get the locally stored avatar
+						largeIcon = ih.getLocal(username, true);
+						imageReceived = true;
+						// get the locally stored name
+						name = db.getName(username);
+					}
+					else
+					{
+						// user file doesn't exist, delete user from db
+						db.deleteUser(username);
+						imageReceived = false;
+						// set the username as name
+						name = "@" + username;
+					}
 
-						for (int a = 0; a < itemLst.getLength(); a++)
+				}
+
+				// username does not exist get from Twitter REST API and add to
+				// db
+				else
+				{
+
+					Log.i(TAG, "Using REST API");
+
+					URL url;
+					try
+					{
+						url = new URL(
+								"https://api.twitter.com/1/users/show.xml?screen_name="
+										+ username + "&include_entities=false");
+						HttpURLConnection conn = (HttpURLConnection) url
+								.openConnection();
+
+						Log.i(TAG, "REST URL: " + url.toString());
+
+						if (conn.getResponseCode() == HttpURLConnection.HTTP_OK)
 						{
+							DocumentBuilderFactory dbf = DocumentBuilderFactory
+									.newInstance();
+							DocumentBuilder db = dbf.newDocumentBuilder();
+							Document doc;
+							doc = db.parse(url.openStream());
+							doc.getDocumentElement().normalize();
+							NodeList itemLst = doc.getElementsByTagName("user");
 
-							Node item = itemLst.item(a);
-							if (item.getNodeType() == Node.ELEMENT_NODE)
+							for (int a = 0; a < itemLst.getLength(); a++)
 							{
-								Element ielem = (Element) item;
-								NodeList imageURL = ielem
-										.getElementsByTagName("profile_image_url");
-								NodeList mName = ielem
-										.getElementsByTagName("name");
 
-								imgURL = imageURL.item(0).getChildNodes()
-										.item(0).getNodeValue();
+								Node item = itemLst.item(a);
+								if (item.getNodeType() == Node.ELEMENT_NODE)
+								{
+									Element ielem = (Element) item;
+									NodeList imageURL = ielem
+											.getElementsByTagName("profile_image_url");
+									NodeList mName = ielem
+											.getElementsByTagName("name");
 
-								name = mName.item(0).getChildNodes().item(0)
-										.getNodeValue();
+									imgURL = imageURL.item(0).getChildNodes()
+											.item(0).getNodeValue();
 
-								Log.i("Tweetification", imgURL);
+									name = mName.item(0).getChildNodes()
+											.item(0).getNodeValue();
+
+									Log.i("Tweetification", imgURL);
+
+								}
 
 							}
 
 						}
 
 					}
-
-				}
-				catch (MalformedURLException e)
-				{
-					Log.i(TAG, "Error: Malformed URL");
-					e.printStackTrace();
-				}
-				catch (DOMException e)
-				{
-					Log.i(TAG, "Error: DOM Exception");
-					e.printStackTrace();
-				}
-				catch (IOException e)
-				{
-					Log.i(TAG, "Error: IO Exception");
-					e.printStackTrace();
-				}
-				catch (ParserConfigurationException e)
-				{
-					Log.i(TAG, "Error: Parser Configuration Exception");
-					e.printStackTrace();
-				}
-				catch (SAXException e)
-				{
-					Log.i(TAG, "Error: SAX Exception");
-					e.printStackTrace();
-				}
-				catch (Exception e)
-				{
-					Log.i(TAG, "Error: Unknown Exception");
-					e.printStackTrace();
-				}
-				finally
-				{
-
-					if (name.equals("notset"))
+					catch (MalformedURLException e)
 					{
-						name = "@" + username;
+						Log.i(TAG, "Error: Malformed URL");
+						e.printStackTrace();
 					}
-
-					if (imgURL.equals("notset"))
+					catch (DOMException e)
 					{
-						imageReceived = false;
+						Log.i(TAG, "Error: DOM Exception");
+						e.printStackTrace();
 					}
-					else
+					catch (IOException e)
 					{
-						imageReceived = true;
+						Log.i(TAG, "Error: IO Exception");
+						e.printStackTrace();
+					}
+					catch (ParserConfigurationException e)
+					{
+						Log.i(TAG, "Error: Parser Configuration Exception");
+						e.printStackTrace();
+					}
+					catch (SAXException e)
+					{
+						Log.i(TAG, "Error: SAX Exception");
+						e.printStackTrace();
+					}
+					catch (Exception e)
+					{
+						Log.i(TAG, "Error: Unknown Exception");
+						e.printStackTrace();
+					}
+					finally
+					{
 
-						try
+						if (name.equals("notset"))
 						{
-							largeIcon = ih.downloadImageFromUrl(imgURL,
-									username + ".jpg");
-							largeIcon = ih.resizeBitmap(largeIcon,
-									largeIcon.getHeight() * 2,
-									largeIcon.getWidth() * 2);
-
+							name = "@" + username;
 						}
-						catch (Exception e)
+
+						if (imgURL.equals("notset"))
 						{
-							e.printStackTrace();
-							largeIcon = null;
 							imageReceived = false;
 						}
+						else
+						{
+							imageReceived = true;
+
+							try
+							{
+								largeIcon = ih.downloadImageFromUrl(imgURL,
+										username + ".jpg");
+								largeIcon = ih.resizeBitmap(largeIcon,
+										largeIcon.getHeight() * 2,
+										largeIcon.getWidth() * 2);
+
+							}
+							catch (Exception e)
+							{
+								e.printStackTrace();
+								largeIcon = null;
+								imageReceived = false;
+							}
+
+						}
+
+						db.insertUser(username, name);
 
 					}
-
-					db.insertUser(username, name);
-
 				}
 			}
-		}
 
-		return null;
+			return true;
+		}
 	}
 
 	@Override
@@ -251,24 +268,27 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 
 		super.onPostExecute(result);
 
-		db.closeDB();
+		if (result)
+		{
 
-		// setup shared preferences
-		final SharedPreferences sp = PreferenceManager
-				.getDefaultSharedPreferences(ctx);
+			db.closeDB();
 
-		String app = sp.getString("application", "none");
+			// setup shared preferences
+			final SharedPreferences sp = PreferenceManager
+					.getDefaultSharedPreferences(ctx);
 
-		Intent LaunchIntent = ctx.getPackageManager()
-				.getLaunchIntentForPackage(app);
+			String app = sp.getString("application", "none");
 
-		PendingIntent contentIntent = null;
+			Intent LaunchIntent = ctx.getPackageManager()
+					.getLaunchIntentForPackage(app);
 
-		contentIntent = PendingIntent.getActivity(ctx, 0, LaunchIntent,
-				PendingIntent.FLAG_ONE_SHOT);
+			PendingIntent contentIntent = null;
 
-		// showNotification(contentIntent, sp);
-		showInboxNotification(contentIntent, sp);
+			contentIntent = PendingIntent.getActivity(ctx, 0, LaunchIntent,
+					PendingIntent.FLAG_ONE_SHOT);
+
+			showInboxNotification(contentIntent, sp);
+		}
 
 	}
 
@@ -284,8 +304,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 				.getSystemService(ns);
 
 		PendingIntent pi = contentIntent;
-		NotificationCompat2.Builder builder = new NotificationCompat2.Builder(
-				ctx);
+		NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx);
 		builder.setContentTitle(name).setContentText(messageReceived);
 		builder.setSmallIcon(R.drawable.small2);
 
@@ -301,8 +320,8 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 		builder.setSound(Uri.parse(sp.getString("notUri", "notset")));
 		builder.setContentIntent(pi);
 
-		Notification notification = new NotificationCompat2.BigTextStyle(
-				builder).bigText(messageReceived).build();
+		Notification notification = new NotificationCompat.BigTextStyle(builder)
+				.bigText(messageReceived).build();
 
 		mNotificationManager.notify(notifID, notification);
 
@@ -322,7 +341,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 
 		PendingIntent pi = contentIntent;
 		Notification noti = null;
-		NotificationCompat2.Builder inboxBuilder = null;
+		NotificationCompat.Builder inboxBuilder = null;
 
 		db.connectDB();
 		db.createTable();
@@ -344,7 +363,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 			 * testBitmap3, testBitmap4});
 			 */
 
-			NotificationCompat2.Builder builder = new NotificationCompat2.Builder(
+			NotificationCompat.Builder builder = new NotificationCompat.Builder(
 					ctx)
 					.setContentTitle(name)
 					.setContentText(messageReceived)
@@ -355,13 +374,18 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 									NotificationClickReceiver.class), 0))
 					.setDeleteIntent(
 							PendingIntent.getBroadcast(ctx, 0, new Intent(ctx,
-									NotificationDeleteReceiver.class), 0))
-					/*
-					 * .addAction(R.drawable.reply, "Reply", contentIntent)
-					 * .addAction(R.drawable.retweet, "Retweet", contentIntent)
-					 */
-					.setSound(Uri.parse(sp.getString("notUri", "notset")));
-			
+									NotificationDeleteReceiver.class), 0));
+
+			if (!sp.getBoolean("silent", false))
+			{
+				builder.setSound(Uri.parse(sp.getString("notUri", "notset")));
+			}
+
+			if (sp.getBoolean("vibrate", false))
+			{
+				builder.setDefaults(Notification.DEFAULT_VIBRATE);
+			}
+
 			if (imageReceived != false && networkEnabled == true)
 			{
 				if (largeIcon != null)
@@ -369,8 +393,8 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 					builder.setLargeIcon(largeIcon);
 				}
 			}
-			
-			noti = new NotificationCompat2.BigTextStyle(builder).bigText(
+
+			noti = new NotificationCompat.BigTextStyle(builder).bigText(
 					messageReceived).build();
 
 			mNotificationManager.notify(1024, noti);
@@ -379,7 +403,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 		else
 		{
 			// how many notifications and display notification
-			inboxBuilder = new NotificationCompat2.Builder(ctx)
+			inboxBuilder = new NotificationCompat.Builder(ctx)
 					.setContentTitle(
 							String.valueOf(numberOfNotifications)
 									+ " Tweetifications")
@@ -394,19 +418,20 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 									NotificationDeleteReceiver.class), 0))
 					.setSound(Uri.parse(sp.getString("notUri", "notset")));
 
-			NotificationCompat2.InboxStyle inbox = new NotificationCompat2.InboxStyle(
+			NotificationCompat.InboxStyle inbox = new NotificationCompat.InboxStyle(
 					inboxBuilder);
 
 			db.connectDB();
 			Cursor notificationRecords = db.getAllNotifications();
 			notificationRecords.moveToFirst();
-			
+
 			String[] users = new String[notificationRecords.getCount()];
 			String[] messages = new String[notificationRecords.getCount()];
-			
+
 			int a = 0;
-			
-			// get all notifications stored in db and assign username and messages to arrays
+
+			// get all notifications stored in db and assign username and
+			// messages to arrays
 			while (notificationRecords.isAfterLast() == false)
 			{
 				users[a] = getUsername(notificationRecords.getString(1));
@@ -414,26 +439,26 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 				a++;
 				notificationRecords.moveToNext();
 			}
-			
-			Log.i(TAG, "Array length: " + String.valueOf(users.length) );
+
+			Log.i(TAG, "Array length: " + String.valueOf(users.length));
 			Log.i(TAG, Arrays.toString(users));
-			
+
 			notificationRecords.close();
-			
+
 			// count number of bitmaps that exist locally
 			int localBitmaps = 0;
-			
-			for (int i=0; i < users.length; i++)
+
+			for (int i = 0; i < users.length; i++)
 			{
 				if (ih.avatarExists(users[i]))
 				{
 					localBitmaps++;
 				}
 			}
-			
+
 			Log.i(TAG, "local Bitmaps: " + String.valueOf(localBitmaps));
 
-			//create bitmap array to correct size
+			// create bitmap array to correct size
 			Bitmap[] bitmapArray;
 
 			if (localBitmaps <= 4)
@@ -448,7 +473,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 			int more = 0;
 			int current;
 
-			for (current = 1; current < users.length+1; current++)
+			for (current = 1; current < users.length + 1; current++)
 			{
 				if (current > 4)
 				{
@@ -456,21 +481,22 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 				}
 				else
 				{
-					
+
 					if (users.length == localBitmaps)
 					{
-						bitmapArray[current - 1] = ih.getLocal(users[current - 1],
-							false);
+						bitmapArray[current - 1] = ih.getLocal(
+								users[current - 1], false);
 					}
-					Log.i(TAG, users[current-1]);
+					Log.i(TAG, users[current - 1]);
 
-					inbox.addLine(messages[current-1]);
+					inbox.addLine(messages[current - 1]);
 				}
 
 			}
-			
-			Log.i(TAG, "BitmapArray length: " + String.valueOf(bitmapArray.length));
-			
+
+			Log.i(TAG,
+					"BitmapArray length: " + String.valueOf(bitmapArray.length));
+
 			if (users.length == localBitmaps)
 			{
 				inboxBuilder.setLargeIcon(ih.makeCollage(bitmapArray));
@@ -509,6 +535,70 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 
 		return messageReceived.substring(firstAt + 1, endAt);
 
+	}
+
+	// //////////////////////////////////////////
+	// Method to make a list from filter words
+	// //////////////////////////////////////////
+	List<String> makeFilterList()
+	{
+		List<String> list = new LinkedList<String>();
+
+		// setup shared preferences
+		final SharedPreferences sp = PreferenceManager
+				.getDefaultSharedPreferences(ctx);
+
+		if (!sp.getString("filter1", "").equals(""))
+		{
+			list.add(sp.getString("filter1", ""));
+		}
+		if (!sp.getString("filter2", "").equals(""))
+		{
+			list.add(sp.getString("filter2", ""));
+		}
+		if (!sp.getString("filter3", "").equals(""))
+		{
+			list.add(sp.getString("filter3", ""));
+		}
+		if (!sp.getString("filter4", "").equals(""))
+		{
+			list.add(sp.getString("filter4", ""));
+		}
+		if (!sp.getString("filter5", "").equals(""))
+		{
+			list.add(sp.getString("filter5", ""));
+		}
+
+		return list;
+
+	}
+
+	// ////////////////////////////////////////////
+	// Method to match filter and return boolean
+	// ////////////////////////////////////////////
+	boolean matchesFilterList()
+	{
+
+		List<String> list = makeFilterList();
+
+		if (list.size() > 0)
+		{
+			for (int i = 0; i < list.size(); i++)
+			{
+				// check word with a space after, and before & after
+				if (messageReceived.toLowerCase().contains(
+						list.get(i).toLowerCase() + " ")
+						|| messageReceived.toLowerCase().contains(
+								" " + list.get(i).toLowerCase() + " ")
+						|| messageReceived.toLowerCase().contains(
+								" " + list.get(i).toLowerCase()))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 }
