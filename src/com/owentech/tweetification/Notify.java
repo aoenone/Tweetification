@@ -12,6 +12,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import android.support.v4.app.NotificationCompat;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -31,7 +32,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.preference.PreferenceManager;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 @SuppressLint("NewApi")
@@ -319,6 +319,7 @@ public class Notify extends AsyncTask<Void, Long, Boolean>
 		builder.setAutoCancel(true);
 		builder.setSound(Uri.parse(sp.getString("notUri", "notset")));
 		builder.setContentIntent(pi);
+
 
 		Notification notification = new NotificationCompat.BigTextStyle(builder)
 				.bigText(messageReceived).build();
